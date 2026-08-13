@@ -33,6 +33,8 @@ Runs binaries directly using `nix run` (automatically resolves `meta.mainProgram
 
 # Execute pinned release with binary override
 , 26.05=ripgrep:rg -i "pattern"
+# if a program have more than one binary u can mention it like :<binary_name> after the  package name
+# like in the above example
 
 # Execute direct custom Flake URI
 , f=github:ksv/repo1#tool --help
