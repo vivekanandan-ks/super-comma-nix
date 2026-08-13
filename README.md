@@ -58,6 +58,10 @@ You can enter the dev environment with just 1 command:
 
 ```bash
 devenv shell #  run this command inside the cloned repo
+
+# or
+
+nix develop --impure # impure since I integrated devenv in flake and it requires env like PWD etc
 ```
 
 ---
