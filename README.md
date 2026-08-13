@@ -91,8 +91,12 @@ inputs = {
 };
 ```
 And then add the package `super-comma-nix` according to ur setup in nix os and home-manager , etc.
-```
 
+---
+
+# Customize:
+U can customize the default flake used by this project by passing a custom flake URL to the environment variable `SUPER_COMMA_FLAKE`.
+The default value is: `github:fzakaria/nixpkgs-multiverse`
 
 
 ---
@@ -103,3 +107,27 @@ And then add the package `super-comma-nix` according to ur setup in nix os and h
 - [`devenv.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/devenv.nix) *(devenv module configuration)*
 - [`flake.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/flake.nix) *(flake-parts + devenv.flakeModule)*
 - [`Cargo.toml`](file:///home/ksvnixospc/Documents/super-comma-nix/Cargo.toml)
+
+---
+
+Roadmap:
+1) Support for nix-output-monitor
+2) Isolations for the commands like: network, filesystem etc
+This will make trying out new programs worry free like without internet connection, etc etc
+Of course would have to integrate more cool projects from the nix ecosystem for ultra experience.
+
+---
+
+### Note:
+I'm a rust noob, so of course AI did the heavy lifting, but I made sure I read the code fully for any screwups by AI. The whole project is just 100 lines of rust code(less than this readme line you are reading so far), so might take few minutes to verify I guess. But where I might be lacking? here are few:
+1) Syntactic sugars
+2) Better inbuilt libraries
+etc etc
+I made sure the project starts small with very small codebase to verify even if it's AI generated and verified. So please feel free to suggest features in the issue tracker. As I learn more rust on the way, i'll continuously improve the project as well.
+
+
+---
+
+
+### Inspirations and Goals of this project:
+Nix shell and nix run commands are plenty helpful already, but they require verbose writing depending on different shells like bash, nu, fish etc. So I got inspired by the comma nix project and thought I'll improve the experience further. The main design is this: simple by default but powerful when needed. So the goals of this project is as simple as making it easy to use nix shell and nix run commands without writing verbose commands. And of course additional functionalities on the way without compromising simplicity as much as possible.
