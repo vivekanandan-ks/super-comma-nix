@@ -54,7 +54,9 @@ List all available historical versions of any package dynamically for your machi
 You can enter the dev environment using **either `devenv` or `nix develop`**:
 
 ```bash
-cd /home/ksvnixospc/Documents/super-comma-nix
+git clone 
+# enter the repo directory
+cd super-comma-nix
 
 # Option 1: devenv shell
 devenv shell
@@ -62,6 +64,36 @@ devenv shell
 # Option 2: nix develop
 nix develop
 ```
+
+---
+
+### How to Use super-comma-nix
+Prerequisites: Nix installed in ur system
+
+# U can install it in any linux distro, Mac, WSL with this:
+
+```bash
+nix profile install github:vivekanandan-ks/super-comma-nix
+```
+
+# Want to try without installing?
+
+```bash
+nix develop github:vivekanandan-ks/super-comma-nix
+```
+# Home manager and NixOS
+
+Add this in flake.nix:
+
+```nix
+inputs = {
+  super-comma-nix.url = "github:vivekanandan-ks/super-comma-nix";
+};
+```
+And then add the package `super-comma-nix` according to ur setup in nix os and home-manager , etc.
+```
+
+
 
 ---
 
