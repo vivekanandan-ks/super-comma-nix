@@ -95,8 +95,22 @@ And then add the package `super-comma-nix` according to ur setup in nix os and h
 ---
 
 # Customize:
-U can customize the default flake used by this project by passing a custom flake URL to the environment variable `SUPER_COMMA_FLAKE`.
-The default value is: `github:fzakaria/nixpkgs-multiverse`
+- **Default Flake URI**: Customize the default flake by passing a custom flake URL to `SUPER_COMMA_FLAKE`. (Default: `github:fzakaria/nixpkgs-multiverse`).
+- **Nix Flags (CLI)**: Pass flags directly to `nix shell` or `nix run` via `nixflags='...'` (single or repeated):
+  ```bash
+  # Inline flags for nix shell / nix run
+  ,s nixflags='--impure --refresh' hello 26.05=cowsay
+
+  # Complex options with substituters or extra arguments
+  ,s nixflags='--option substituters "https://cache.nixos.org https://mycache.org"' hello
+
+  # Multiple nixflags parameters
+  ,s nixflags='--impure' nixflags='--extra-substituters https://cache.org' hello
+  ```
+- **Nix Flags (Environment Variable)**: Set persistent default flags across all runs via `SUPER_COMMA_NIXFLAGS`:
+  ```bash
+  export SUPER_COMMA_NIXFLAGS="--extra-experimental-features nix-command"
+  ```
 
 
 ---

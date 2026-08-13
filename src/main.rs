@@ -1,5 +1,34 @@
 use std::{env, os::unix::process::CommandExt, process::Command};
 
+fn parse_nflags_str(s: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut quote_char = ' ';
+
+    for c in s.chars() {
+        match c {
+            '"' | '\'' if !in_quotes => {
+                in_quotes = true;
+                quote_char = c;
+            }
+            c if in_quotes && c == quote_char => {
+                in_quotes = false;
+            }
+            ' ' | '\t' if !in_quotes => {
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        args.push(current);
+    }
+    args
+}
+
 fn main() {
     let raw_args: Vec<String> = env::args().collect();
     let prog = env::args().next().unwrap_or_default();
@@ -7,7 +36,7 @@ fn main() {
     let is_ver = prog.ends_with(",v") || raw_args.get(1).map_or(false, |a| a == "-v");
 
     if raw_args.len() < 2 || raw_args[1] == "-h" || raw_args[1] == "--help" {
-        println!("super-comma (,) - Usage: , <pkg_spec> [args...] | ,s <specs...> | ,v <pkg>");
+        println!("super-comma (,) - Usage: , [nixflags='...'] <pkg_spec> [args...] | ,s [nixflags='...'] <specs...> | ,v <pkg>");
         return;
     }
 
@@ -27,11 +56,9 @@ fn main() {
         return;
     }
 
-    let args: Vec<String> = raw_args.iter().map(|a| a.replace(&['"', '\''][..], "")).collect();
-
     let resolve = |spec: &str, scope: Option<&str>| -> (String, String) {
         let (pkg, bin) = spec.split_once(':').unwrap_or((spec, ""));
-        let (attr, base) = if pkg.starts_with("latest.") || pkg.starts_with("tip.") || pkg.starts_with("versions.") || pkg.split('.').next().unwrap_or("").chars().all(|c| c.is_ascii_digit()) || pkg.contains('-') {
+        let (attr, _base) = if pkg.starts_with("latest.") || pkg.starts_with("tip.") || pkg.starts_with("versions.") || pkg.split('.').next().unwrap_or("").chars().all(|c| c.is_ascii_digit()) || pkg.contains('-') {
             (pkg.to_string(), pkg.split('.').last().unwrap_or(pkg).to_string())
         } else if let Some((p, v)) = pkg.split_once('.') {
             (format!("versions.{}.\"{}\"", p, v), p.to_string())
@@ -43,43 +70,86 @@ fn main() {
     };
 
     let start_idx = if is_shell { if raw_args[1] == "-s" { 2 } else { 1 } } else { 1 };
-    if start_idx >= args.len() {
-        println!("Usage: ,s <pkg_spec1> [pkg_spec2...]");
+    if start_idx >= raw_args.len() {
+        println!("Usage: ,s [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
         return;
     }
 
-    let input_specs = if is_shell { &args[start_idx..] } else { &args[start_idx..start_idx + 1] };
+    let mut nix_flags: Vec<String> = Vec::new();
+    if let Ok(env_flags) = env::var("SUPER_COMMA_NIXFLAGS").or_else(|_| env::var("SUPER_COMMA_NIX_FLAGS")) {
+        nix_flags.extend(parse_nflags_str(&env_flags));
+    }
+
+    let cli_remaining = &raw_args[start_idx..];
+    let mut input_specs: Vec<String> = Vec::new();
+    let mut extra_args: Vec<String> = Vec::new();
+
+    if is_shell {
+        for arg in cli_remaining {
+            if let Some(val) = arg.strip_prefix("nixflags=").or_else(|| arg.strip_prefix("nixflag=")) {
+                let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
+                nix_flags.extend(parse_nflags_str(clean_val));
+            } else {
+                input_specs.push(arg.clone());
+            }
+        }
+    } else {
+        let mut found_target = false;
+        for arg in cli_remaining {
+            if let Some(val) = arg.strip_prefix("nixflags=").or_else(|| arg.strip_prefix("nixflag=")) {
+                let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
+                nix_flags.extend(parse_nflags_str(clean_val));
+            } else if !found_target {
+                input_specs.push(arg.clone());
+                found_target = true;
+            } else {
+                extra_args.push(arg.clone());
+            }
+        }
+    }
+
+    if input_specs.is_empty() {
+        if is_shell {
+            println!("Usage: ,s [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
+        } else {
+            println!("Usage: , [nixflags='...'] <pkg_spec> [args...]");
+        }
+        return;
+    }
 
     let targets: Vec<(String, String)> = input_specs
         .iter()
-        .flat_map(|arg| match arg.split_once('=') {
-            Some((prefix, list)) => {
-                let clean_prefix = prefix.replace(&['"', '\''][..], "");
-                if clean_prefix == "f" || clean_prefix == "flake" {
-                    list.split(',')
-                        .map(|p| p.trim())
-                        .filter(|p| !p.is_empty())
-                        .map(|raw_uri| {
-                            if let Some((hash_part, bin_override)) = raw_uri.split_once('#') {
-                                if let Some((attr_name, custom_bin)) = bin_override.split_once(':') {
-                                    (format!("{}#{}", hash_part, attr_name), custom_bin.to_string())
+        .flat_map(|arg| {
+            let clean_arg = arg.replace(&['"', '\''][..], "");
+            match clean_arg.split_once('=') {
+                Some((prefix, list)) => {
+                    let clean_prefix = prefix.replace(&['"', '\''][..], "");
+                    if clean_prefix == "f" || clean_prefix == "flake" {
+                        list.split(',')
+                            .map(|p| p.trim())
+                            .filter(|p| !p.is_empty())
+                            .map(|raw_uri| {
+                                if let Some((hash_part, bin_override)) = raw_uri.split_once('#') {
+                                    if let Some((attr_name, custom_bin)) = bin_override.split_once(':') {
+                                        (format!("{}#{}", hash_part, attr_name), custom_bin.to_string())
+                                    } else {
+                                        (raw_uri.to_string(), String::new())
+                                    }
                                 } else {
                                     (raw_uri.to_string(), String::new())
                                 }
-                            } else {
-                                (raw_uri.to_string(), String::new())
-                            }
-                        })
-                        .collect()
-                } else {
-                    list.split(',')
-                        .map(|p| p.trim())
-                        .filter(|p| !p.is_empty())
-                        .map(|p| resolve(p, Some(&clean_prefix)))
-                        .collect()
+                            })
+                            .collect()
+                    } else {
+                        list.split(',')
+                            .map(|p| p.trim())
+                            .filter(|p| !p.is_empty())
+                            .map(|p| resolve(p, Some(&clean_prefix)))
+                            .collect()
+                    }
                 }
+                None => vec![resolve(clean_arg.trim(), None)],
             }
-            None => vec![resolve(arg.trim(), None)],
         })
         .collect();
 
@@ -91,17 +161,23 @@ fn main() {
     let mut nix = Command::new("nix");
 
     if is_shell {
-        nix.arg("shell").args(targets.iter().map(|t| &t.0));
+        nix.arg("shell");
+        nix.args(&nix_flags);
+        nix.args(targets.iter().map(|t| &t.0));
     } else {
         let (target_uri, bin_override) = &targets[0];
-        let extra_args = if start_idx + 1 < raw_args.len() { &raw_args[start_idx + 1..] } else { &[] };
 
         if !bin_override.is_empty() {
-            nix.arg("shell").arg(target_uri).arg("-c").arg(bin_override).args(extra_args);
+            nix.arg("shell");
+            nix.args(&nix_flags);
+            nix.arg(target_uri).arg("-c").arg(bin_override).args(&extra_args);
         } else {
-            nix.arg("run").arg(target_uri).arg("--").args(extra_args);
+            nix.arg("run");
+            nix.args(&nix_flags);
+            nix.arg(target_uri).arg("--").args(&extra_args);
         }
     }
 
     let _ = nix.exec();
 }
+
