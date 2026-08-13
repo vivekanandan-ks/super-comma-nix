@@ -50,12 +50,14 @@ List all available historical versions of any package dynamically for your machi
 ---
 
 ### Contributing to the Development:
-Setup guide? It's nix era, we dont do that here :-)
+Setup guide? Not required!
+
+It's nix era, we dont do that here :-)
 
 You can enter the dev environment with just 1 command:
 
 ```bash
-nix develop #  run this command inside the cloned repo
+devenv shell #  run this command inside the cloned repo
 ```
 
 ---
