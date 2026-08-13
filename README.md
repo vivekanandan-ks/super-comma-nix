@@ -171,7 +171,7 @@ Roadmap:
 
 ### Note:
 
-I'm a rust noob, so of course AI did the heavy lifting. The codebase isn't big, so might take short for you to verify I guess (as the project is all about splitting and joiing strings toform the final command). Feel free to suggest features in the issue tracker.
+I'm a rust ultra noob, so of course AI did the heavy lifting. The codebase isn't big, so might take short for you to verify I guess (as the project is all about splitting and joiing strings toform the final command). Feel free to suggest features in the issue tracker.
 
 ---
 
