@@ -49,11 +49,15 @@
               clippy
               rustfmt
               rust-analyzer
+              nix-output-monitor
               self'.packages.default
             ];
           };
           try = pkgs.mkShell {
-            packages = [ self'.packages.default ];
+            packages = with pkgs; [
+              nix-output-monitor
+              self'.packages.default
+            ];
           };
         };
 

@@ -54,6 +54,7 @@ Mix and match any of these package formats in `,` or `,s`:
   , --nom ripgrep -i "pattern"
   ,s --nom hello 26.05=cowsay
   ```
+  > **Note:** `--nom` requires `nom` (`nix-output-monitor`) to be available in your system environment `$PATH`.
 
 ---
 
