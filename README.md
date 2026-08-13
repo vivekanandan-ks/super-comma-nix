@@ -49,20 +49,13 @@ List all available historical versions of any package dynamically for your machi
 
 ---
 
-### Development Shell (`devenv` & `nix develop`)
+### Contributing to the Development:
+Setup guide? It's nix era, we dont do that here :-)
 
-You can enter the dev environment using **either `devenv` or `nix develop`**:
+You can enter the dev environment with just 1 command:
 
 ```bash
-git clone 
-# enter the repo directory
-cd super-comma-nix
-
-# Option 1: devenv shell
-devenv shell
-
-# Option 2: nix develop
-nix develop
+nix develop #  run this command inside the cloned repo
 ```
 
 ---
@@ -70,17 +63,19 @@ nix develop
 ### How to Use super-comma-nix
 Prerequisites: Nix installed in ur system
 
+# Want to try without installing?
+
+```bash
+nix develop github:vivekanandan-ks/super-comma-nix#try
+# and then try the project inside the temporary shell
+```
+
 # U can install it in any linux distro, Mac, WSL with this:
 
 ```bash
 nix profile install github:vivekanandan-ks/super-comma-nix
 ```
 
-# Want to try without installing?
-
-```bash
-nix develop github:vivekanandan-ks/super-comma-nix
-```
 # Home manager and NixOS
 
 Add this in flake.nix:
@@ -90,7 +85,7 @@ inputs = {
   super-comma-nix.url = "github:vivekanandan-ks/super-comma-nix";
 };
 ```
-And then add the package `super-comma-nix` according to ur setup in nix os and home-manager , etc.
+And then add the package `super-comma` according to ur setup in nixos and home-manager , etc.
 
 ---
 
@@ -133,12 +128,11 @@ Of course would have to integrate more cool projects from the nix ecosystem for 
 ---
 
 ### Note:
-I'm a rust noob, so of course AI did the heavy lifting, but I made sure I read the code fully for any screwups by AI. The whole project is just 100 lines of rust code(less than this readme line you are reading so far), so might take few minutes to verify I guess. But where I might be lacking? here are few:
+I'm a rust noob, so of course AI did the heavy lifting, but I made sure I read the code fully for any screwups by AI. The codebase isnt big, so might take short for u to verify I guess. But where I might be lacking? here are few:
 1) Syntactic sugars
-2) Better inbuilt libraries
+2) Better inbuilt libraries usage
 etc etc
-I made sure the project starts small with very small codebase to verify even if it's AI generated and verified. So please feel free to suggest features in the issue tracker. As I learn more rust on the way, i'll continuously improve the project as well.
-
+I made sure the project starts small with very small codebase to verify even if it's AI generated and verified. So please feel free to suggest features in the issue tracker. As I learn rust on the way, i'll continuously improve the project as well.
 
 ---
 

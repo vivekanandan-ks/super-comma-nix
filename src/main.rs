@@ -35,7 +35,7 @@ fn main() {
     let is_shell = prog.ends_with(",s") || raw_args.get(1).map_or(false, |a| a == "-s");
     let is_ver = prog.ends_with(",v") || raw_args.get(1).map_or(false, |a| a == "-v");
 
-    if raw_args.len() < 2 || raw_args[1] == "-h" || raw_args[1] == "--help" {
+    if raw_args.len() < 2 || raw_args.iter().any(|a| a == "-h" || a == "--help") {
         println!("super-comma (,) - Usage: , [nixflags='...'] <pkg_spec> [args...] | ,s [nixflags='...'] <specs...> | ,v <pkg>");
         return;
     }

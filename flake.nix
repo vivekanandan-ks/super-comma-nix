@@ -39,6 +39,11 @@
             '';
           };
           default = super-comma;
+          try = default;
+        };
+
+        devShells.try = pkgs.mkShell {
+          packages = [ self'.packages.default ];
         };
 
         apps.default = {

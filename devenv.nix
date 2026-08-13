@@ -9,6 +9,10 @@
 
   languages.rust.enable = true;
 
+  scripts.",".exec = ''cargo run -- "$@"'';
+  scripts.",s".exec = ''cargo run -- -s "$@"'';
+  scripts.",v".exec = ''cargo run -- -v "$@"'';
+
   enterShell = ''
     echo -e "\033[1;36mWelcome to super-comma (,) DevShell!\033[0m"
     echo -e "Commands available:"
