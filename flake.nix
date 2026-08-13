@@ -5,6 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     devenv.url = "github:cachix/devenv";
+    gitignore = {
+      url = "github:hercules-ci/gitignore.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs@{ flake-parts, ... }:
@@ -25,7 +29,7 @@
           super-comma = pkgs.stdenv.mkDerivation {
             pname = "super-comma";
             version = "1.0.0";
-            src = ./.;
+            src = inputs.gitignore.lib.gitignoreSource ./.;
             nativeBuildInputs = [ pkgs.rustc pkgs.cargo ];
             buildPhase = ''
               cargo build --release --offline || cargo build --release
