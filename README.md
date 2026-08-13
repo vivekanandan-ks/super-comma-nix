@@ -114,6 +114,15 @@ And then add the package `super-comma` according to ur setup in nixos and home-m
   ```bash
   export SUPER_COMMA_NIXFLAGS="--extra-experimental-features nix-command"
   ```
+- **Output Command Mode (`-o` / `--output`)**: Inspect the exact `nix` command line built by `super-comma` without executing it:
+  ```bash
+  , -o ripgrep -i "pattern"
+  # Outputs: nix run github:fzakaria/nixpkgs-multiverse#latest.ripgrep -- -i pattern
+
+  ,s -o nixflags='--impure' hello 26.05=cowsay
+  # Outputs: nix shell --impure github:fzakaria/nixpkgs-multiverse#latest.hello github:fzakaria/nixpkgs-multiverse#26.05.cowsay
+  ```
+
 
 
 ---

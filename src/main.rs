@@ -32,27 +32,55 @@ fn parse_nflags_str(s: &str) -> Vec<String> {
 fn main() {
     let raw_args: Vec<String> = env::args().collect();
     let prog = env::args().next().unwrap_or_default();
-    let is_shell = prog.ends_with(",s") || raw_args.get(1).map_or(false, |a| a == "-s");
-    let is_ver = prog.ends_with(",v") || raw_args.get(1).map_or(false, |a| a == "-v");
+    let is_shell = prog.ends_with(",s") || raw_args.iter().skip(1).any(|a| a == "-s");
+    let is_ver = prog.ends_with(",v") || raw_args.iter().skip(1).any(|a| a == "-v");
 
     if raw_args.len() < 2 || raw_args.iter().any(|a| a == "-h" || a == "--help") {
-        println!("super-comma (,) - Usage: , [nixflags='...'] <pkg_spec> [args...] | ,s [nixflags='...'] <specs...> | ,v <pkg>");
+        println!("super-comma (,) - Usage: , [-o] [nixflags='...'] <pkg_spec> [args...] | ,s [-o] [nixflags='...'] <specs...> | ,v <pkg>");
         return;
     }
 
+    let output_only = raw_args.iter().any(|a| a == "-o" || a == "--output");
     let flake = env::var("SUPER_COMMA_FLAKE").unwrap_or_else(|_| "github:fzakaria/nixpkgs-multiverse".into());
 
     if is_ver {
-        let pkg_idx = if raw_args[1] == "-v" { 2 } else { 1 };
-        if pkg_idx >= raw_args.len() {
-            println!("Usage: ,v <package_name> (e.g. ,v python3)");
+        let pkg_args: Vec<String> = raw_args.iter().skip(1).filter(|a| *a != "-o" && *a != "--output" && *a != "-v").cloned().collect();
+        if pkg_args.is_empty() {
+            println!("Usage: ,v [-o] <package_name> (e.g. ,v python3)");
             return;
         }
-        let pkg = raw_args[pkg_idx].replace(&['"', '\''][..], "");
-        println!("Available versions for {}:", pkg);
+        let pkg = pkg_args[0].replace(&['"', '\''][..], "");
         let expr = format!("f: builtins.concatStringsSep \"\\n\" (f.${{builtins.currentSystem}}.versionsOf \"{}\")", pkg);
         let target = format!("{}#multiverse", flake);
-        let _ = Command::new("nix").args(["eval", "--raw", "--impure", "--apply", &expr, &target]).status();
+
+        let cmd_tokens = vec![
+            "nix".to_string(),
+            "eval".to_string(),
+            "--raw".to_string(),
+            "--impure".to_string(),
+            "--apply".to_string(),
+            expr,
+            target,
+        ];
+
+        if output_only {
+            let formatted = cmd_tokens
+                .iter()
+                .map(|tok| {
+                    if tok.contains(' ') || tok.contains('\t') || tok.contains('\n') || tok.is_empty() {
+                        format!("\"{}\"", tok)
+                    } else {
+                        tok.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            println!("{}", formatted);
+            return;
+        }
+
+        println!("Available versions for {}:", pkg);
+        let _ = Command::new(&cmd_tokens[0]).args(&cmd_tokens[1..]).status();
         return;
     }
 
@@ -69,23 +97,20 @@ fn main() {
         (format!("{}#{}", flake, attr), bin.to_string())
     };
 
-    let start_idx = if is_shell { if raw_args[1] == "-s" { 2 } else { 1 } } else { 1 };
-    if start_idx >= raw_args.len() {
-        println!("Usage: ,s [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
-        return;
-    }
-
     let mut nix_flags: Vec<String> = Vec::new();
     if let Ok(env_flags) = env::var("SUPER_COMMA_NIXFLAGS").or_else(|_| env::var("SUPER_COMMA_NIX_FLAGS")) {
         nix_flags.extend(parse_nflags_str(&env_flags));
     }
 
-    let cli_remaining = &raw_args[start_idx..];
+    let cli_remaining = &raw_args[1..];
     let mut input_specs: Vec<String> = Vec::new();
     let mut extra_args: Vec<String> = Vec::new();
 
     if is_shell {
         for arg in cli_remaining {
+            if arg == "-o" || arg == "--output" || arg == "-s" {
+                continue;
+            }
             if let Some(val) = arg.strip_prefix("nixflags=").or_else(|| arg.strip_prefix("nixflag=")) {
                 let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
                 nix_flags.extend(parse_nflags_str(clean_val));
@@ -96,6 +121,9 @@ fn main() {
     } else {
         let mut found_target = false;
         for arg in cli_remaining {
+            if arg == "-o" || arg == "--output" {
+                continue;
+            }
             if let Some(val) = arg.strip_prefix("nixflags=").or_else(|| arg.strip_prefix("nixflag=")) {
                 let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
                 nix_flags.extend(parse_nflags_str(clean_val));
@@ -110,9 +138,9 @@ fn main() {
 
     if input_specs.is_empty() {
         if is_shell {
-            println!("Usage: ,s [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
+            println!("Usage: ,s [-o] [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
         } else {
-            println!("Usage: , [nixflags='...'] <pkg_spec> [args...]");
+            println!("Usage: , [-o] [nixflags='...'] <pkg_spec> [args...]");
         }
         return;
     }
@@ -158,26 +186,50 @@ fn main() {
         return;
     }
 
-    let mut nix = Command::new("nix");
+    let mut cmd_tokens = vec!["nix".to_string()];
 
     if is_shell {
-        nix.arg("shell");
-        nix.args(&nix_flags);
-        nix.args(targets.iter().map(|t| &t.0));
+        cmd_tokens.push("shell".into());
+        cmd_tokens.extend(nix_flags);
+        cmd_tokens.extend(targets.iter().map(|t| t.0.clone()));
     } else {
         let (target_uri, bin_override) = &targets[0];
 
         if !bin_override.is_empty() {
-            nix.arg("shell");
-            nix.args(&nix_flags);
-            nix.arg(target_uri).arg("-c").arg(bin_override).args(&extra_args);
+            cmd_tokens.push("shell".into());
+            cmd_tokens.extend(nix_flags);
+            cmd_tokens.push(target_uri.clone());
+            cmd_tokens.push("-c".into());
+            cmd_tokens.push(bin_override.clone());
+            cmd_tokens.extend(extra_args);
         } else {
-            nix.arg("run");
-            nix.args(&nix_flags);
-            nix.arg(target_uri).arg("--").args(&extra_args);
+            cmd_tokens.push("run".into());
+            cmd_tokens.extend(nix_flags);
+            cmd_tokens.push(target_uri.clone());
+            cmd_tokens.push("--".into());
+            cmd_tokens.extend(extra_args);
         }
     }
 
+    if output_only {
+        let formatted = cmd_tokens
+            .iter()
+            .map(|tok| {
+                if tok.contains(' ') || tok.contains('\t') || tok.is_empty() {
+                    format!("\"{}\"", tok)
+                } else {
+                    tok.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("{}", formatted);
+        return;
+    }
+
+    let mut nix = Command::new(&cmd_tokens[0]);
+    nix.args(&cmd_tokens[1..]);
     let _ = nix.exec();
 }
+
 
