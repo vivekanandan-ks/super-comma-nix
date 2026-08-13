@@ -1,5 +1,10 @@
 {
-  perSystem = { self', pkgs, ... }: {
+  perSystem = {
+    config,
+    self',
+    pkgs,
+    ...
+  }: {
     devShells = {
       default = pkgs.mkShell {
         packages = with pkgs; [
@@ -11,6 +16,7 @@
           nix-output-monitor
           self'.packages.default
         ];
+        shellHook = config.pre-commit.installationScript;
       };
       try = pkgs.mkShell {
         packages = with pkgs; [
