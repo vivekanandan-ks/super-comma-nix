@@ -109,14 +109,10 @@ And then add the package `super-comma` according to your setup in NixOS and Home
 
 ### Contributing to Development
 
-You can enter the dev environment with just 1 command:
+You can enter the pure Nix dev environment with just 1 command:
 
 ```bash
-devenv shell # run this command inside the cloned repo
-
-# or
-
-nix develop --impure # impure since devenv requires env like PWD etc
+nix develop # Enter pure Nix environment with Rust toolchain & super-comma binaries
 ```
 
 ---
@@ -124,8 +120,7 @@ nix develop --impure # impure since devenv requires env like PWD etc
 ### Implementation & Configuration
 
 - [`src/main.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/main.rs) *(Rust runner, zero external dependencies)*
-- [`devenv.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/devenv.nix) *(devenv module configuration)*
-- [`flake.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/flake.nix) *(flake-parts + devenv.flakeModule)*
+- [`flake.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/flake.nix) *(flake-parts + nix Shell & build package)*
 - [`Cargo.toml`](file:///home/ksvnixospc/Documents/super-comma-nix/Cargo.toml)
 
 ---
