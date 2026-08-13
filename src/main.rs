@@ -1,61 +1,37 @@
-use std::{env, os::unix::process::CommandExt, process::Command};
+mod parser;
+mod resolver;
+mod sandbox;
 
-fn parse_nflags_str(s: &str) -> Vec<String> {
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    let mut quote_char = ' ';
+use parser::{get_super_flags, parse_nflags_str};
+use resolver::resolve;
+use sandbox::SandboxConfig;
 
-    for c in s.chars() {
-        match c {
-            '"' | '\'' if !in_quotes => {
-                in_quotes = true;
-                quote_char = c;
-            }
-            c if in_quotes && c == quote_char => {
-                in_quotes = false;
-            }
-            ' ' | '\t' if !in_quotes => {
-                if !current.is_empty() {
-                    args.push(std::mem::take(&mut current));
-                }
-            }
-            _ => current.push(c),
-        }
-    }
-    if !current.is_empty() {
-        args.push(current);
-    }
-    args
-}
+use std::env;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
 
 fn main() {
     let raw_args: Vec<String> = env::args().collect();
     let prog = env::args().next().unwrap_or_default();
+    let all_super_args = get_super_flags(&raw_args);
 
-    let mut super_flags = Vec::new();
-    if let Ok(env_sflags) = env::var("SUPER_COMMA_FLAGS") {
-        super_flags.extend(parse_nflags_str(&env_sflags));
-    }
-
-    let all_super_args: Vec<String> = raw_args
-        .iter()
-        .cloned()
-        .chain(super_flags.into_iter())
-        .collect();
-
-    let is_shell = prog.ends_with(",s") || all_super_args.iter().skip(1).any(|a| a == "-s");
-    let is_ver = prog.ends_with(",v") || all_super_args.iter().skip(1).any(|a| a == "-v");
+    let is_shell = prog.ends_with(",s")
+        || all_super_args.iter().skip(1).any(|a| a == "-s")
+        || raw_args.get(1).map_or(false, |a| a == "s" || a == ",s");
+    let is_ver = prog.ends_with(",v")
+        || all_super_args.iter().skip(1).any(|a| a == "-v")
+        || raw_args.get(1).map_or(false, |a| a == "v" || a == ",v");
 
     if raw_args.len() < 2 || all_super_args.iter().any(|a| a == "-h" || a == "--help") {
         println!(
-            "super-comma (,) - Usage: , [--nom] [-o] [nixflags='...'] <pkg_spec> [args...] | ,s [--nom] [-o] [nixflags='...'] <specs...> | ,v <pkg>"
+            "super-comma (,) - Usage: , [--sandbox] [--net] [--rw=...] [--ro=...] [--nom] [-o] [nixflags='...'] <pkg_spec> [args...] | ,s ... | ,v <pkg>"
         );
         return;
     }
 
     let output_only = all_super_args.iter().any(|a| a == "-o" || a == "--output");
     let is_nom = all_super_args.iter().any(|a| a == "--nom");
+    let sandbox_cfg = SandboxConfig::from_args(&all_super_args);
     let flake = env::var("SUPER_COMMA_FLAKE")
         .unwrap_or_else(|_| "github:fzakaria/nixpkgs-multiverse".into());
 
@@ -63,7 +39,17 @@ fn main() {
         let pkg_args: Vec<String> = raw_args
             .iter()
             .skip(1)
-            .filter(|a| *a != "-o" && *a != "--output" && *a != "--nom" && *a != "-v")
+            .filter(|a| {
+                *a != "-o"
+                    && *a != "--output"
+                    && *a != "--nom"
+                    && *a != "-v"
+                    && *a != "--sandbox"
+                    && *a != "--net"
+                    && !a.starts_with("--rw=")
+                    && !a.starts_with("--ro=")
+                    && !a.starts_with("--rox=")
+            })
             .cloned()
             .collect();
         if pkg_args.is_empty() {
@@ -88,22 +74,7 @@ fn main() {
         ];
 
         if output_only {
-            let formatted = cmd_tokens
-                .iter()
-                .map(|tok| {
-                    if tok.contains(' ')
-                        || tok.contains('\t')
-                        || tok.contains('\n')
-                        || tok.is_empty()
-                    {
-                        format!("\"{}\"", tok)
-                    } else {
-                        tok.clone()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ");
-            println!("{}", formatted);
+            println!("{}", format_cmd(&cmd_tokens));
             return;
         }
 
@@ -112,31 +83,6 @@ fn main() {
         return;
     }
 
-    let resolve = |spec: &str, scope: Option<&str>| -> (String, String, String) {
-        let (pkg, bin) = spec.split_once(':').unwrap_or((spec, ""));
-        let (attr, base) = if pkg.starts_with("latest.")
-            || pkg.starts_with("tip.")
-            || pkg.starts_with("versions.")
-            || pkg
-                .split('.')
-                .next()
-                .unwrap_or("")
-                .chars()
-                .all(|c| c.is_ascii_digit())
-        {
-            (
-                pkg.to_string(),
-                pkg.split('.').last().unwrap_or(pkg).to_string(),
-            )
-        } else if let Some((p, v)) = pkg.split_once('.') {
-            (format!("versions.{}.\"{}\"", p, v), p.to_string())
-        } else {
-            let rel = scope.unwrap_or("latest");
-            (format!("{}.{}", rel, pkg), pkg.to_string())
-        };
-        (format!("{}#{}", flake, attr), bin.to_string(), base)
-    };
-
     let mut nix_flags: Vec<String> = Vec::new();
     if let Ok(env_flags) =
         env::var("SUPER_COMMA_NIXFLAGS").or_else(|_| env::var("SUPER_COMMA_NIX_FLAGS"))
@@ -144,13 +90,41 @@ fn main() {
         nix_flags.extend(parse_nflags_str(&env_flags));
     }
 
-    let cli_remaining = &raw_args[1..];
+    let start_idx = if raw_args.len() > 1
+        && (raw_args[1] == "s" || raw_args[1] == ",s" || raw_args[1] == "v" || raw_args[1] == ",v")
+    {
+        2
+    } else {
+        1
+    };
+    let cli_remaining = &raw_args[start_idx..];
     let mut input_specs: Vec<String> = Vec::new();
     let mut extra_args: Vec<String> = Vec::new();
 
+    let is_sandbox_flag = |arg: &str| {
+        arg == "-o"
+            || arg == "--output"
+            || arg == "--nom"
+            || arg == "-s"
+            || arg == "--sandbox"
+            || arg == "--net"
+            || arg.starts_with("--rw=")
+            || arg.starts_with("--ro=")
+            || arg.starts_with("--rox=")
+    };
+
     if is_shell {
+        let mut in_extra_args = false;
         for arg in cli_remaining {
-            if arg == "-o" || arg == "--output" || arg == "--nom" || arg == "-s" {
+            if in_extra_args {
+                extra_args.push(arg.clone());
+                continue;
+            }
+            if arg == "--" {
+                in_extra_args = true;
+                continue;
+            }
+            if is_sandbox_flag(arg) {
                 continue;
             }
             if let Some(val) = arg
@@ -166,7 +140,7 @@ fn main() {
     } else {
         let mut found_target = false;
         for arg in cli_remaining {
-            if arg == "-o" || arg == "--output" || arg == "--nom" {
+            if is_sandbox_flag(arg) {
                 continue;
             }
             if let Some(val) = arg
@@ -186,9 +160,13 @@ fn main() {
 
     if input_specs.is_empty() {
         if is_shell {
-            println!("Usage: ,s [--nom] [-o] [nixflags='...'] <pkg_spec1> [pkg_spec2...]");
+            println!(
+                "Usage: ,s [--sandbox] [--net] [--rw=...] [--nom] [-o] [nixflags='...'] <specs...> [-- <cmd> [args...]]"
+            );
         } else {
-            println!("Usage: , [--nom] [-o] [nixflags='...'] <pkg_spec> [args...]");
+            println!(
+                "Usage: , [--sandbox] [--net] [--rw=...] [--nom] [-o] [nixflags='...'] <pkg_spec> [args...]"
+            );
         }
         return;
     }
@@ -230,11 +208,11 @@ fn main() {
                         list.split(',')
                             .map(|p| p.trim())
                             .filter(|p| !p.is_empty())
-                            .map(|p| resolve(p, Some(&clean_prefix)))
+                            .map(|p| resolve(p, Some(&clean_prefix), &flake))
                             .collect()
                     }
                 }
-                None => vec![resolve(clean_arg.trim(), None)],
+                None => vec![resolve(clean_arg.trim(), None, &flake)],
             }
         })
         .collect();
@@ -246,11 +224,24 @@ fn main() {
 
     let main_exec = if is_nom { "nom" } else { "nix" };
     let mut cmd_tokens = vec![main_exec.to_string()];
+    let sandbox_prefix = sandbox_cfg.build_prefix();
 
     if is_shell {
         cmd_tokens.push("shell".into());
         cmd_tokens.extend(nix_flags);
         cmd_tokens.extend(targets.iter().map(|t| t.0.clone()));
+
+        if !extra_args.is_empty() || sandbox_cfg.enabled {
+            cmd_tokens.push("-c".into());
+            if sandbox_cfg.enabled {
+                cmd_tokens.extend(sandbox_prefix);
+            }
+            if !extra_args.is_empty() {
+                cmd_tokens.extend(extra_args);
+            } else {
+                cmd_tokens.push(env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into()));
+            }
+        }
     } else {
         let (target_uri, bin_override, default_bin_name) = &targets[0];
         let exec_bin = if !bin_override.is_empty() {
@@ -259,12 +250,18 @@ fn main() {
             default_bin_name
         };
 
-        if is_nom || !bin_override.is_empty() {
+        if sandbox_cfg.enabled || is_nom || !bin_override.is_empty() {
             cmd_tokens.push("shell".into());
             cmd_tokens.extend(nix_flags);
             cmd_tokens.push(target_uri.clone());
             cmd_tokens.push("-c".into());
-            cmd_tokens.push(exec_bin.clone());
+
+            if sandbox_cfg.enabled {
+                cmd_tokens.extend(sandbox_prefix);
+                cmd_tokens.push(exec_bin.clone());
+            } else {
+                cmd_tokens.push(exec_bin.clone());
+            }
             cmd_tokens.extend(extra_args);
         } else {
             cmd_tokens.push("run".into());
@@ -276,22 +273,25 @@ fn main() {
     }
 
     if output_only {
-        let formatted = cmd_tokens
-            .iter()
-            .map(|tok| {
-                if tok.contains(' ') || tok.contains('\t') || tok.is_empty() {
-                    format!("\"{}\"", tok)
-                } else {
-                    tok.clone()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-        println!("{}", formatted);
+        println!("{}", format_cmd(&cmd_tokens));
         return;
     }
 
     let mut nix = Command::new(&cmd_tokens[0]);
     nix.args(&cmd_tokens[1..]);
     let _ = nix.exec();
+}
+
+fn format_cmd(tokens: &[String]) -> String {
+    tokens
+        .iter()
+        .map(|tok| {
+            if tok.contains(' ') || tok.contains('\t') || tok.contains('\n') || tok.is_empty() {
+                format!("\"{}\"", tok)
+            } else {
+                tok.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }

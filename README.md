@@ -8,11 +8,11 @@
 
 ### 1. Core Features & Modes (`,`, `,s`, `,v`)
 
-| Mode                  | Command | Description                                                             | Example                  |
-| :-------------------- | :------ | :---------------------------------------------------------------------- | :----------------------- |
-| **Direct Execution**  | `,`     | Runs binaries directly via `nix run` (auto-resolves `meta.mainProgram`) | `, ripgrep -i "pattern"` |
-| **Interactive Shell** | `,s`    | Opens a Nix shell session with multiple packages in `$PATH`             | `,s hello cowsay lolcat` |
-| **Version Query**     | `,v`    | Dynamically lists all historical versions of a package for your system  | `,v python3`             |
+| Mode                  | Command | Description                                                             | Example                                       |
+| :-------------------- | :------ | :---------------------------------------------------------------------- | :-------------------------------------------- |
+| **Direct Execution**  | `,`     | Runs binaries directly via `nix run` (auto-resolves `meta.mainProgram`) | `, ripgrep -i "pattern"`                      |
+| **Interactive Shell** | `,s`    | Opens a Nix shell with multiple packages (use `-- <cmd>` for execution) | `,s hello cowsay` / `,s hello -- cowsay "hi"` |
+| **Version Query**     | `,v`    | Dynamically lists all historical versions of a package for your system  | `,v python3`                                  |
 
 ---
 
@@ -30,40 +30,60 @@ Mix and match any of these package formats in `,` or `,s`:
 
 ---
 
-### 3. Project Flags & Purpose
+### 3. Core Project Flags & Environment Variables
 
-| Flag                   | Short            | Purpose                                                                         | Example                                  |
-| :--------------------- | :--------------- | :------------------------------------------------------------------------------ | :--------------------------------------- |
-| **Output / Dry-Run**   | `-o`, `--output` | Manifests and prints the exact `nix` or `nom` command line without executing it | `, -o ripgrep -i "pattern"`              |
-| **Nix Pass-Through**   | `nixflags='...'` | Passes raw flags directly to the underlying `nix` CLI (quote-aware)             | `,s nixflags='--impure --refresh' hello` |
-| **Nix Output Monitor** | `--nom`          | Integrates `nix-output-monitor` for colorful progress bars and tree build logs  | `, --nom ripgrep -i "pattern"`           |
-| **Shell Mode**         | `-s`             | Flag alternative to `,s`                                                        | `, -s hello cowsay`                      |
-| **Version Mode**       | `-v`             | Flag alternative to `,v`                                                        | `, -v python3`                           |
+#### Core CLI Flags
+
+| Flag                  | Short            | Purpose                                                                         | Example                                  |
+| :-------------------- | :--------------- | :------------------------------------------------------------------------------ | :--------------------------------------- |
+| **Output / Dry-Run**  | `-o`, `--output` | Manifests and prints the exact `nix` or `nom` command line without executing it | `, -o ripgrep -i "pattern"`              |
+| **Nix Pass-Through**  | `nixflags='...'` | Passes raw flags directly to the underlying `nix` CLI (quote-aware)             | `,s nixflags='--impure --refresh' hello` |
+| **Command Delimiter** | `--`             | Delimits package specs from direct command execution in `,s` shell mode         | `,s hello cowsay -- cowsay "hello"`      |
+| **Shell Mode**        | `-s`             | Flag alternative to `,s`                                                        | `, -s hello cowsay`                      |
+| **Version Mode**      | `-v`             | Flag alternative to `,v`                                                        | `, -v python3`                           |
+
+#### Core Environment Variables
+
+| Variable               | Purpose                                                                      | Example                                                                   |
+| :--------------------- | :--------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
+| `SUPER_COMMA_FLAKE`    | Overrides default flake URL (Default: `github:fzakaria/nixpkgs-multiverse`)  | `export SUPER_COMMA_FLAKE="github:myorg/multiverse"`                      |
+| `SUPER_COMMA_FLAGS`    | Persistent default flags for `super-comma` (e.g. `--nom`, `--sandbox`, `-o`) | `export SUPER_COMMA_FLAGS="--sandbox"`                                    |
+| `SUPER_COMMA_NIXFLAGS` | Persistent default flags passed to the underlying `nix` CLI                  | `export SUPER_COMMA_NIXFLAGS="--extra-experimental-features nix-command"` |
+
+### 4. Integrations & Extensions
+
+#### 4.1 `nix-output-monitor` (`--nom`)
+
+| Feature / Flag         | Full Flag Syntax | Purpose                                                                        | Example                        |
+| :--------------------- | :--------------- | :----------------------------------------------------------------------------- | :----------------------------- |
+| **Nix Output Monitor** | `--nom`          | Integrates `nix-output-monitor` for colorful progress bars and tree build logs | `, --nom ripgrep -i "pattern"` |
+
+> **Note on `--nom`:** Requires `nom` (`nix-output-monitor`) to be available in your system environment `$PATH`.
+
+#### 4.2 Cross-Platform Sandboxing (`--sandbox`, `landrun` / `sandbox-exec`)
+
+##### Sandbox Flags & Features
+
+| Sub-Flag             | Full Flag Syntax          | Purpose                                                               | Example                               |
+| :------------------- | :------------------------ | :-------------------------------------------------------------------- | :------------------------------------ |
+| **Default Sandbox**  | `--sandbox`               | Enforces default-deny sandbox lockdown (blocks network & home writes) | `, --sandbox ripgrep -i "pattern"`    |
+| **Unblock Network**  | `--sandbox --net`         | Unblocks network socket & DNS access within sandbox                   | `, --sandbox --net python3 script.py` |
+| **Read-Write Paths** | `--sandbox --rw=<paths>`  | Unblocks write access to specified comma-separated paths              | `, --sandbox --rw=./,/tmp node.js`    |
+| **Read-Only Paths**  | `--sandbox --ro=<paths>`  | Unblocks extra read-only paths inside sandbox                         | `, --sandbox --ro=/var/log ripgrep`   |
+| **Executable Paths** | `--sandbox --rox=<paths>` | Unblocks extra read-only + executable paths inside sandbox            | `, --sandbox --rox=/opt/bin tool`     |
+
+##### Sandbox Environment Variables
+
+| Variable                       | Purpose                                                                | Example                                                                    |
+| :----------------------------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| `SUPER_COMMA_LANDRUN_FLAGS`    | **Additive**: Extra custom flags appended on top of `landrun` defaults | `export SUPER_COMMA_LANDRUN_FLAGS="--env DISPLAY --env WAYLAND_DISPLAY"`   |
+| `SUPER_COMMA_LANDRUN_OVERRIDE` | **Override**: Completely replaces all default `landrun` flags          | `export SUPER_COMMA_LANDRUN_OVERRIDE="--rox /nix/store --ro /etc --rw ./"` |
+
+> **Note on Linux defaults:** By default, Linux sandboxing (`landrun`) automatically supplies safe defaults (`--add-exec`, `--rox /nix/store`, `--ro /etc`, essential `/dev` devices like `/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/zero`, and core environment variables `$PATH`, `$HOME`, `$USER`, `$SHELL`, `$TERM`, `$LANG`). Use `SUPER_COMMA_LANDRUN_FLAGS` to **add extra flags** on top of these defaults, or `SUPER_COMMA_LANDRUN_OVERRIDE` to **completely replace** them. macOS uses native `/usr/bin/sandbox-exec`.
 
 ---
 
-### 4. Environment Variables & Usage
-
-| Variable               | Purpose                                                                     | Example                                                                   |
-| :--------------------- | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
-| `SUPER_COMMA_FLAKE`    | Overrides default flake URL (Default: `github:fzakaria/nixpkgs-multiverse`) | `export SUPER_COMMA_FLAKE="github:myorg/multiverse"`                      |
-| `SUPER_COMMA_FLAGS`    | Persistent default flags for `super-comma` (e.g. `--nom`, `-o`)             | `export SUPER_COMMA_FLAGS="--nom"`                                        |
-| `SUPER_COMMA_NIXFLAGS` | Persistent default flags passed to the underlying `nix` CLI                 | `export SUPER_COMMA_NIXFLAGS="--extra-experimental-features nix-command"` |
-
----
-
-### 5. Integrations
-
-- **`nix-output-monitor` (`--nom`)**: Automatically pipes build output through `nom shell` for colorful, tree-based progress tracking and download stats:
-  ```bash
-  , --nom ripgrep -i "pattern"
-  ,s --nom hello 26.05=cowsay
-  ```
-  > **Note:** `--nom` requires `nom` (`nix-output-monitor`) to be available in your system environment `$PATH`.
-
----
-
-### 6. Comprehensive Use Cases & Examples
+### 5. Comprehensive Use Cases & Examples
 
 ```bash
 # 1. Quick run of latest package with CLI flags
@@ -78,7 +98,13 @@ Mix and match any of these package formats in `,` or `,s`:
 # 4. Colorful build monitoring with nom
 , --nom ripgrep -i "pattern"
 
-# 5. Query all historical versions of a package
+# 5. Sandboxed execution with network, storage and more isolation
+, --sandbox python3 script.py
+
+# 6. Direct command execution in multi-package shell (with optional sandboxing)
+,s --sandbox hello cowsay -- cowsay "Hello from multi-package shell"
+
+# 7. Query all historical versions of a package
 ,v tdesktop
 ```
 
@@ -127,7 +153,10 @@ nix develop # Enter pure Nix environment with Rust toolchain & super-comma binar
 
 ### Implementation & Configuration
 
-- [`src/main.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/main.rs) _(Rust runner, zero external dependencies)_
+- [`src/main.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/main.rs) _(Rust runner & CLI orchestration)_
+- [`src/parser.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/parser.rs) _(Quote-aware tokenizer & flag extractors)_
+- [`src/resolver.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/resolver.rs) _(Package spec & version resolver)_
+- [`src/sandbox.rs`](file:///home/ksvnixospc/Documents/super-comma-nix/src/sandbox.rs) _(Cross-platform Landlock/Seatbelt sandbox engine)_
 - [`flake.nix`](file:///home/ksvnixospc/Documents/super-comma-nix/flake.nix) _(flake-parts + nix Shell & build package)_
 - [`Cargo.toml`](file:///home/ksvnixospc/Documents/super-comma-nix/Cargo.toml)
 
@@ -136,9 +165,7 @@ nix develop # Enter pure Nix environment with Rust toolchain & super-comma binar
 Roadmap:
 
 1. `(Added!)` Support for nix-output-monitor
-2. Isolations for the commands like: network, filesystem etc
-   This will make trying out new programs worry free like without internet connection, etc etc.
-   suggest more integrations to improve the experience
+2. `(Added!)` Isolations for commands: network & filesystem sandboxing (`--sandbox`, `--net`, `--rw=...`)
 
 ---
 
