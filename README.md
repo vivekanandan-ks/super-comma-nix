@@ -2,6 +2,8 @@
 
 `super-comma` is an ultra-fast, zero-dependency Nix command runner written in **Rust** and powered directly by **[nixpkgs-multiverse](https://github.com/fzakaria/nixpkgs-multiverse)**.
 
+#### Note: Scroll to the bottom to see the AI usage note.
+
 ---
 
 ## ⚡ Fast Read / Quick Reference
@@ -169,12 +171,12 @@ Roadmap:
 
 ---
 
-### Note:
-
-I'm a rust ultra noob, so of course AI did the heavy lifting. The codebase isn't big, so might take short for you to verify I guess (as the project is all about splitting and joiing strings toform the final command). Feel free to suggest features in the issue tracker.
-
----
-
 ### Inspirations and Goals of this project:
 
 Nix shell and nix run commands are plenty helpful already, but they require verbose writing depending on different shells like bash, nu, fish etc. So I got inspired by the comma nix project and thought I'll improve the experience further. The main design is this: simple by default but powerful when needed. So the goals of this project is as simple as making it easy to use nix shell and nix run commands without writing verbose commands. And of course additional functionalities on the way without compromising simplicity as much as possible.
+
+---
+
+### AI Usage Note:
+
+I'm a rust ultra noob, so of course AI did the heavy lifting. The codebase isn't big, so might take short for you to verify I guess (as the project is all about splitting and joiing strings toform the final command). Feel free to suggest features in the issue tracker. AI also helped me figure out the tables etc in the markdown.
