@@ -111,6 +111,10 @@ fn main() {
             || arg.starts_with("--rw=")
             || arg.starts_with("--ro=")
             || arg.starts_with("--rox=")
+            || arg.starts_with("landrunflags=")
+            || arg.starts_with("landrunflag=")
+            || arg.starts_with("landrunadd=")
+            || arg.starts_with("landrunoverride=")
     };
 
     if is_shell {

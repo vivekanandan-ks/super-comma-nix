@@ -8,6 +8,8 @@ pub struct SandboxConfig {
     pub rw_paths: Vec<String>,
     pub ro_paths: Vec<String>,
     pub rox_paths: Vec<String>,
+    pub extra_landrun_flags: Vec<String>,
+    pub override_landrun_flags: Vec<String>,
 }
 
 impl SandboxConfig {
@@ -18,6 +20,8 @@ impl SandboxConfig {
         let mut rw_paths = Vec::new();
         let mut ro_paths = Vec::new();
         let mut rox_paths = Vec::new();
+        let mut extra_landrun_flags = Vec::new();
+        let mut override_landrun_flags = Vec::new();
 
         for arg in all_super_args {
             if let Some(paths) = arg.strip_prefix("--rw=") {
@@ -29,6 +33,18 @@ impl SandboxConfig {
             if let Some(paths) = arg.strip_prefix("--rox=") {
                 rox_paths.extend(paths.split(',').map(|p| p.trim().to_string()));
             }
+            if let Some(val) = arg
+                .strip_prefix("landrunflags=")
+                .or_else(|| arg.strip_prefix("landrunflag="))
+                .or_else(|| arg.strip_prefix("landrunadd="))
+            {
+                let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
+                extra_landrun_flags.extend(parse_nflags_str(clean_val));
+            }
+            if let Some(val) = arg.strip_prefix("landrunoverride=") {
+                let clean_val = val.trim_matches(|c| c == '\'' || c == '"');
+                override_landrun_flags.extend(parse_nflags_str(clean_val));
+            }
         }
 
         SandboxConfig {
@@ -37,6 +53,8 @@ impl SandboxConfig {
             rw_paths,
             ro_paths,
             rox_paths,
+            extra_landrun_flags,
+            override_landrun_flags,
         }
     }
 
@@ -62,8 +80,8 @@ impl SandboxConfig {
             // Linux landrun (Landlock LSM)
             cmd.push("landrun".to_string());
 
-            if let Ok(override_opts) = env::var("SUPER_COMMA_LANDRUN_OVERRIDE") {
-                cmd.extend(parse_nflags_str(&override_opts));
+            if !self.override_landrun_flags.is_empty() {
+                cmd.extend(self.override_landrun_flags.clone());
             } else {
                 cmd.push("--add-exec".to_string());
                 cmd.push("--rox".to_string());
@@ -122,11 +140,9 @@ impl SandboxConfig {
                 cmd.push(path.clone());
             }
 
-            // Additive custom options from SUPER_COMMA_LANDRUN_FLAGS (or legacy SUPER_COMMA_LANDRUN_OPTIONS)
-            if let Ok(extra_flags) = env::var("SUPER_COMMA_LANDRUN_FLAGS")
-                .or_else(|_| env::var("SUPER_COMMA_LANDRUN_OPTIONS"))
-            {
-                cmd.extend(parse_nflags_str(&extra_flags));
+            // Additive custom options from CLI landrunflags='...'
+            if !self.extra_landrun_flags.is_empty() {
+                cmd.extend(self.extra_landrun_flags.clone());
             }
         }
 

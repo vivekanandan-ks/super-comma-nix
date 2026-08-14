@@ -6,6 +6,14 @@
 
 ---
 
+# Quickstart:
+
+```bash
+# Just run:
+nix develop github:vivekanandan-ks/super-comma-nix#try
+# and then try the project inside the temporary shell
+```
+
 ## ⚡ Fast Read / Quick Reference
 
 ### 1. Core Features & Modes (`,`, `,s`, `,v`)
@@ -56,6 +64,8 @@ Mix and match any of these package formats in `,` or `,s`:
 
 #### 4.1 `nix-output-monitor` (`--nom`)
 
+https://github.com/maralorn/nix-output-monitor
+
 | Feature / Flag         | Full Flag Syntax | Purpose                                                                        | Example                        |
 | :--------------------- | :--------------- | :----------------------------------------------------------------------------- | :----------------------------- |
 | **Nix Output Monitor** | `--nom`          | Integrates `nix-output-monitor` for colorful progress bars and tree build logs | `, --nom ripgrep -i "pattern"` |
@@ -64,24 +74,21 @@ Mix and match any of these package formats in `,` or `,s`:
 
 #### 4.2 Cross-Platform Sandboxing (`--sandbox`, `landrun` / `sandbox-exec`)
 
+https://github.com/Zouuup/landrun
+
 ##### Sandbox Flags & Features
 
-| Sub-Flag             | Full Flag Syntax          | Purpose                                                               | Example                               |
-| :------------------- | :------------------------ | :-------------------------------------------------------------------- | :------------------------------------ |
-| **Default Sandbox**  | `--sandbox`               | Enforces default-deny sandbox lockdown (blocks network & home writes) | `, --sandbox ripgrep -i "pattern"`    |
-| **Unblock Network**  | `--sandbox --net`         | Unblocks network socket & DNS access within sandbox                   | `, --sandbox --net python3 script.py` |
-| **Read-Write Paths** | `--sandbox --rw=<paths>`  | Unblocks write access to specified comma-separated paths              | `, --sandbox --rw=./,/tmp node.js`    |
-| **Read-Only Paths**  | `--sandbox --ro=<paths>`  | Unblocks extra read-only paths inside sandbox                         | `, --sandbox --ro=/var/log ripgrep`   |
-| **Executable Paths** | `--sandbox --rox=<paths>` | Unblocks extra read-only + executable paths inside sandbox            | `, --sandbox --rox=/opt/bin tool`     |
+| Sub-Flag             | Full Flag Syntax          | Purpose                                                               | Example                                                  |
+| :------------------- | :------------------------ | :-------------------------------------------------------------------- | :------------------------------------------------------- |
+| **Default Sandbox**  | `--sandbox`               | Enforces default-deny sandbox lockdown (blocks network & home writes) | `, --sandbox ripgrep -i "pattern"`                       |
+| **Unblock Network**  | `--sandbox --net`         | Unblocks network socket & DNS access within sandbox                   | `, --sandbox --net python3 script.py`                    |
+| **Read-Write Paths** | `--sandbox --rw=<paths>`  | Unblocks write access to specified comma-separated paths              | `, --sandbox --rw=./,/tmp node.js`                       |
+| **Read-Only Paths**  | `--sandbox --ro=<paths>`  | Unblocks extra read-only paths inside sandbox                         | `, --sandbox --ro=/var/log ripgrep`                      |
+| **Executable Paths** | `--sandbox --rox=<paths>` | Unblocks extra read-only + executable paths inside sandbox            | `, --sandbox --rox=/opt/bin tool`                        |
+| **Landrun Additive** | `landrunflags='...'`      | **Additive**: Passes extra raw `landrun` flags on the CLI             | `, --sandbox landrunflags='--env DISPLAY' python3`       |
+| **Landrun Override** | `landrunoverride='...'`   | **Override**: Completely replaces all default `landrun` flags on CLI  | `, --sandbox landrunoverride='--rox /nix/store' python3` |
 
-##### Sandbox Environment Variables
-
-| Variable                       | Purpose                                                                | Example                                                                    |
-| :----------------------------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| `SUPER_COMMA_LANDRUN_FLAGS`    | **Additive**: Extra custom flags appended on top of `landrun` defaults | `export SUPER_COMMA_LANDRUN_FLAGS="--env DISPLAY --env WAYLAND_DISPLAY"`   |
-| `SUPER_COMMA_LANDRUN_OVERRIDE` | **Override**: Completely replaces all default `landrun` flags          | `export SUPER_COMMA_LANDRUN_OVERRIDE="--rox /nix/store --ro /etc --rw ./"` |
-
-> **Note on Linux defaults:** By default, Linux sandboxing (`landrun`) automatically supplies safe defaults (`--add-exec`, `--rox /nix/store`, `--ro /etc`, essential `/dev` devices like `/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/zero`, and core environment variables `$PATH`, `$HOME`, `$USER`, `$SHELL`, `$TERM`, `$LANG`). Use `SUPER_COMMA_LANDRUN_FLAGS` to **add extra flags** on top of these defaults, or `SUPER_COMMA_LANDRUN_OVERRIDE` to **completely replace** them. macOS uses native `/usr/bin/sandbox-exec`.
+> **Note on Linux defaults:** By default, Linux sandboxing (`landrun`) automatically supplies safe defaults (`--add-exec`, `--rox /nix/store`, `--ro /etc`, essential `/dev` devices like `/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/zero`, and core environment variables `$PATH`, `$HOME`, `$USER`, `$SHELL`, `$TERM`, `$LANG`). Use `landrunflags='...'` on the CLI (or persistent flags in `SUPER_COMMA_FLAGS`) to **add extra flags** on top of these defaults, or `landrunoverride='...'` to **completely replace** them. macOS uses native `/usr/bin/sandbox-exec`.
 
 ---
 
@@ -90,24 +97,43 @@ Mix and match any of these package formats in `,` or `,s`:
 ```bash
 # 1. Quick run of latest package with CLI flags
 , ripgrep -i "pattern" --color=always
+# ↳ Expands to:
+# nix run github:fzakaria/nixpkgs-multiverse#latest.ripgrep -- -i pattern --color=always
 
 # 2. Open multi-package shell with release channels and exact versions
 ,s hello 26.05=cowsay,lolcat python3."3.8.9" f=github:ksv/repo1
+# ↳ Expands to:
+# nix shell github:fzakaria/nixpkgs-multiverse#latest.hello github:fzakaria/nixpkgs-multiverse#26.05.cowsay github:fzakaria/nixpkgs-multiverse#26.05.lolcat github:fzakaria/nixpkgs-multiverse#versions.python3."3.8.9" github:ksv/repo1
 
 # 3. Dry-run inspection (-o) with custom nix flags
 ,s -o nixflags='--impure --refresh' hello 26.05=cowsay
+# ↳ Expands to:
+# nix shell --impure --refresh github:fzakaria/nixpkgs-multiverse#latest.hello github:fzakaria/nixpkgs-multiverse#26.05.cowsay
 
 # 4. Colorful build monitoring with nom
 , --nom ripgrep -i "pattern"
+# ↳ Expands to:
+# nom shell github:fzakaria/nixpkgs-multiverse#latest.ripgrep -c ripgrep -i pattern
 
 # 5. Sandboxed execution with network, storage and more isolation
-, --sandbox python3 script.py
+, --sandbox --net --rw=./,/tmp python3 script.py
+# ↳ Expands to:
+# nix shell github:fzakaria/nixpkgs-multiverse#latest.python3 -c landrun --add-exec --rox /nix/store --ro /etc --rw /dev/null --rw /dev/zero --rw /dev/full --rw /dev/tty --rw /dev/pts --env PATH --env HOME --env USER --env SHELL --env TERM --env COLORTERM --env LANG --env XDG_CONFIG_HOME --env XDG_DATA_HOME --env XDG_RUNTIME_DIR --unrestricted-network --rw ./ --rw /tmp python3 script.py
 
-# 6. Direct command execution in multi-package shell (with optional sandboxing)
+# 6. Pass custom raw landrun flags directly on CLI
+, --sandbox landrunflags='--env DISPLAY' python3 script.py
+# ↳ Expands to:
+# nix shell github:fzakaria/nixpkgs-multiverse#latest.python3 -c landrun --add-exec --rox /nix/store --ro /etc ... --env PATH ... --env DISPLAY python3 script.py
+
+# 7. Direct command execution in multi-package shell (with optional sandboxing)
 ,s --sandbox hello cowsay -- cowsay "Hello from multi-package shell"
+# ↳ Expands to:
+# nix shell github:fzakaria/nixpkgs-multiverse#latest.hello github:fzakaria/nixpkgs-multiverse#latest.cowsay -c landrun --add-exec --rox /nix/store --ro /etc ... cowsay "Hello from multi-package shell"
 
-# 7. Query all historical versions of a package
-,v tdesktop
+# 8. Query all historical versions of a package
+,v python3
+# ↳ Expands to:
+# nix eval --raw --impure --apply "f: builtins.concatStringsSep \"\n\" (f.${builtins.currentSystem}.versionsOf \"python3\")" github:fzakaria/nixpkgs-multiverse#multiverse
 ```
 
 ---
