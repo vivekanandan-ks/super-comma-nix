@@ -21,7 +21,7 @@ nix develop github:vivekanandan-ks/super-comma-nix#try
 | Mode                  | Command | Description                                                             | Example                                       |
 | :-------------------- | :------ | :---------------------------------------------------------------------- | :-------------------------------------------- |
 | **Direct Execution**  | `,`     | Runs binaries directly via `nix run` (auto-resolves `meta.mainProgram`) | `, ripgrep -i "pattern"`                      |
-| **Interactive Shell** | `,s`    | Opens a Nix shell with multiple packages (use `-- <cmd>` for execution) | `,s hello cowsay` / `,s hello -- cowsay "hi"` |
+| **Interactive Shell** | `,s`    | Opens a Nix shell with multiple packages (use `-- <cmd>` for execution) | `,s hello cowsay` / `,s cowsay -- cowsay "hi"` |
 | **Version Query**     | `,v`    | Dynamically lists all historical versions of a package for your system  | `,v python3`                                  |
 
 ---
